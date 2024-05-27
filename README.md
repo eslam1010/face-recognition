@@ -1,6 +1,9 @@
-pip install face-recognition
-pip install tk
-pip install opencv-python
-pip install gTTs
-pip install playsound
-pip install pytest-shutil
+# you should install these python modules for the code
+```
+pip install face-recognition \
+tk \
+opencv-python \
+gTTs \
+playsound \
+pytest-shutil	
+```
