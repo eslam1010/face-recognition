@@ -6,8 +6,8 @@ from gtts import gTTS
 from PIL import ImageTk,Image
 from playsound import playsound
 from tkinter import filedialog
-from awesometkinter.bidirender import add_bidi_support as bidi
-import shutil
+from awesometkinter.bidirender import add_bidi_support as bidi #arabic text
+import shutil #coping
 import re #lang
 images_dir = "Humans/Images/"
 voices_dir = "Humans/Voices/"
