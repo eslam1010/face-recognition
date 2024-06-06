@@ -6,20 +6,10 @@ from gtts import gTTS
 from PIL import ImageTk,Image
 from playsound import playsound
 from tkinter import filedialog
-from awesometkinter.bidirender import add_bidi_support as bidi #arabic text
 import shutil #coping
 import re #lang
 images_dir = "Humans/Images/"
 voices_dir = "Humans/Voices/"
-# To prevent repeating sound
-last=None
-def last_frame(person_index):
-    global last
-    if last==person_index:
-        return True
-    else:
-        last=person_index
-        return False
 # make Directories to save the images and Voices inside
 def makedirs():
     if 'Humans' not in os.listdir('.'):
@@ -35,7 +25,8 @@ def load_images(folder):
         if image is not None:
             images.append((filename, cv2.cvtColor(image, cv2.COLOR_BGR2RGB)))
     return images
-#### This is the main idea ####
+
+                        #### This is the main idea ####
 #start recognition
 def capture_video_stream():
     known_faces_images = load_images(images_dir)
@@ -47,6 +38,7 @@ def capture_video_stream():
         return
 
     try:
+        FrameNoFaceTimes=0 #this variable to stop repeat the sound
         while True:
             # Capture frame-by-frame
             ret, frame = cap.read()
@@ -62,22 +54,35 @@ def capture_video_stream():
             face_locations = face_recognition.face_locations(frame_rgb)
             face_encodings = face_recognition.face_encodings(frame_rgb, face_locations)
             if not face_locations:
-                last_frame(-1)
+                FrameNoFaceTimes+=1
+                print(FrameNoFaceTimes)
+                
+                
             # Compare face encodings with the known face encoding
             for face_encoding in face_encodings:
+                if FrameNoFaceTimes<=15:#15 is like a timer to out sound again
+                    skip = True
+                else:
+                    skip = False
                 # Compare face encoding with the known face encoding
                 matches = face_recognition.compare_faces(known_faces_encodings, face_encoding)
                 for idx, match in enumerate(matches):
                     if match:
-                        if last_frame(idx):
-                            continue
+                        if skip: #skipping
+                            break
                         else:
-                            name=str(known_faces_images[idx][0]).split('.')[0]
-                            print(name)
+                            FrameNoFaceTimes=0
+                            name = str(known_faces_images[idx][0]).split('.')[0]#sound name
+                            id = name.split("-")[0] # To select his id number
+                            # search on the sound that start with the this id
+                            l = os.listdir(voices_dir)
+                            l.sort()
+                            filename = l[int(id)-1]
+                            print(filename)
                             try:
-                                playsound(f'{voices_dir}{name}.mp3')
+                                playsound(f'{voices_dir}{filename}')
                             finally:
-                                continue
+                                break
 
             # Display the frame (optional)
             cv2.imshow('ESP32-CAM Stream', frame)
@@ -129,21 +134,23 @@ def newPerson():
 
     image_field = Text(addWin, wrap=WORD, width='40', height='1')
     img_button = Button(master=addWin, width='10', height='1',
-                         text="select image", command=select_img)
+                        text="select image", command=select_img)
+    
     name_field = Text(addWin, wrap=CHAR, width='20', height='1')
     name_label = Label(addWin,text='Enter his name: ',font=("Arial", 12),
                        borderwidth=1,relief=SOLID)
+    
     submit = Button(addWin,width='20',height='2',font=("Arial",12),
                     text='Save',command=savingANewPerson)
     cancel = Button(addWin,width='20',height='2',font=("Arial",12),
                     text='Cancel',command=destroy)
+    
     img_button.grid(row=0,column=0,pady=30,padx=10)
     image_field.grid(row=0,column=1,pady=30,padx=10)
     name_label.grid(row=1,column=0,pady=30,ipadx=5,ipady=5,padx=10)
     name_field.grid(row=1,column=1,pady=30)
     submit.grid(row=2,column=0,pady=30,padx=10)
     cancel.grid(row=2,column=1,pady=30,padx=10)
-    #submit.place(x=170,y=240)
 def destroy():
     addWin.destroy()
 #Select person's picture  
@@ -176,6 +183,14 @@ def detect_language(text):
         return "Unknown"
 #when clicking on save button in add new persons
 def savingANewPerson():
+    thePathWillSaveIn = os.getcwd()+f"/{images_dir}"
+    l = os.listdir(thePathWillSaveIn) # list all images names
+    if l:
+        l.sort()
+        lastImage=l[-1] 
+        id = lastImage.split(".")[0]#last id number of images names
+    else:
+        id=0
     # get the name and image
     name = name_field.get('1.0',END)
     name = name[:-1] # To remove "\n" char
@@ -184,7 +199,7 @@ def savingANewPerson():
     print(image_path)
     ###  Saving the picture  ####
     pic_format = image_path.split(".")[1] # select this => (jpg) or (png) or else..
-    thePathWillSaveIn = os.getcwd()+f"/{images_dir}{name}.{pic_format}" #the path that will save in
+    thePathWillSaveIn = os.getcwd()+f"/{images_dir}{id+1}.{pic_format}" #the path that will save in
     coping = shutil.copy(image_path,thePathWillSaveIn) # coping
 
     ### Saving the voice ###
@@ -197,7 +212,7 @@ def savingANewPerson():
         voice = True
     else:
         voice =False
-    speech.save(f"{voices_dir}{name}.mp3")
+    speech.save(f"{voices_dir}{id+1}-{name}.mp3")
     # A picture and voice are saved successfully
     if coping and voice:
         msg = Label(addWin,text="The person saved successfully.",fg="green",font=("Arial",12))
@@ -218,9 +233,11 @@ def showSavedPersons(rng=0):
     images = list(os.listdir(images_dir))
     images.sort
     length = len(images)
+    lastNumber=0
     for n in range(r,r+6):
         if n >= length:
             break
+        #left images
         if n%2==0:
             path = os.path.join(images_dir,images[n]) #image path
             images[n] = Image.open(path)
@@ -234,8 +251,7 @@ def showSavedPersons(rng=0):
             name = path[lastSlash+1:path.index(".")]
             nameLabel = Label(personsWin,text=name)
             nameLabel.grid(row=n,column=1,padx=('0','70'))
-            bidi(nameLabel)
-            nameLabel.set(name)
+        #right images
         elif n%2==1:
             path = os.path.join(images_dir,images[n]) #image path
             images[n] = Image.open(path)
@@ -249,9 +265,8 @@ def showSavedPersons(rng=0):
             name = path[lastSlash+1:path.index(".")]
             nameLabel = Label(personsWin,text=name)
             nameLabel.grid(row=n-1,column=3)
-            bidi(nameLabel)
-            nameLabel.set(name)
-    if r<6:
+            lastNumber=n
+    if lastNumber<r<6:
         nextBTN = Button(personsWin,text='Next',width='20',height=2,command=nextPage)
         nextBTN.place(x=280,y=500)
     elif r>length-6:
@@ -342,10 +357,9 @@ def translate():
     ar_aboutWin.geometry("800x400+300+100")
  
     # A Label widget to show in toplevel
-    form=Label(ar_aboutWin,justify='right')
+    form=Label(ar_aboutWin,justify='right',text=ar_article)
     form.pack()
-    bidi(form)
-    form.set(ar_article)
+
     #button to change the lang to ar
     switch_lang = Button(ar_aboutWin,width='20',height='2',text="EN",command=About)
     switch_lang.pack()
